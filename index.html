@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+  <meta
+    name="description"
+    content="A customizable Matrix-style digital rain animation."
+  >
+  <meta name="theme-color" content="#000000">
+
+  <title>🌧️ Matrix Digital Rain</title>
+
+  <link
+    rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌧️</text></svg>"
+  >
+
+  <style>
+    :root {
+      --accent: #00ff41;
+      --panel-bg: rgba(0, 10, 5, 0.84);
+      --panel-border: rgba(0, 255, 65, 0.25);
+      --text: rgba(220, 255, 228, 0.9);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    body {
+      position: relative;
+      font-family:
+        Consolas,
+        Monaco,
+        "Courier New",
+        monospace;
+      color: var(--text);
+    }
+
+    /* =========================================
+       MATRIX CANVAS
+       ========================================= */
+
+    #matrix {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+
+      display: block;
+
+      width: 100vw;
+      height: 100vh;
+
+      background: #000;
+    }
+
+    /* =========================================
+       ATMOSPHERIC EFFECTS
+       ========================================= */
+
+    .atmosphere {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+
+      pointer-events: none;
+
+      background:
+        radial-gradient(
+          circle at 50% 50%,
+          rgba(0, 255, 65, 0.055),
+          transparent 42%
+        ),
+        radial-gradient(
+          circle at 10% 20%,
+          rgba(0, 160, 255, 0.035),
+          transparent 30%
+        ),
+        radial-gradient(
+          circle at 85% 75%,
+          rgba(130, 0, 255, 0.035),
+          transparent 35%
+        );
+
+      mix-blend-mode: screen;
+    }
+
+    .scanlines {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+
+      pointer-events: none;
+
+      opacity: 0.12;
+
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          transparent 0,
+          transparent 2px,
+          rgba(255, 255, 255, 0.035) 3px,
+          transparent 4px
+        );
+    }
+
+    .vignette {
+      position: fixed;
+      inset: 0;
+      z-index: 3;
+
+      pointer-events: none;
+
+      background:
+        radial-gradient(
+          ellipse at center,
+          transparent 35%,
+          rgba(0, 0, 0, 0.18) 65%,
+          rgba(0, 0, 0, 0.68) 100%
+        );
+    }
+
+    /* =========================================
+       TITLE
+       ========================================= */
+
+    .title {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      z-index: 10;
+
+      transform: translateX(-50%);
+
+      padding: 9px 15px;
+
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+
+      background: rgba(0, 8, 3, 0.65);
+
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+
+      color: var(--accent);
+
+      font-size: 13px;
+      font-weight: 600;
+
+      letter-spacing: 2px;
+      text-transform: uppercase;
+
+      white-space: nowrap;
+      user-select: none;
+
+      box-shadow:
+        0 0 20px rgba(0, 255, 65, 0.08),
+        inset 0 0 20px rgba(0, 255, 65, 0.025);
+    }
+
+    /* =========================================
+       SETTINGS BUTTON
+       ========================================= */
+
+    .control-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 20;
+
+      width: 44px;
+      height: 44px;
+
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+
+      background: rgba(0, 10, 5, 0.78);
+
+      color: var(--accent);
+
+      font-size: 18px;
+
+      cursor: pointer;
+
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+
+      transition:
+        transform 0.2s ease,
+        background 0.2s ease,
+        box-shadow 0.2s ease;
+    }
+
+    .control-toggle:hover {
+      transform: translateY(-2px);
+
+      background: rgba(0, 35, 15, 0.9);
+
+      box-shadow:
+        0 0 18px rgba(0, 255, 65, 0.15);
+    }
+
+    .control-toggle:focus-visible,
+    .button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* =========================================
+       CONTROL PANEL
+       ========================================= */
+
+    .controls {
+      position: fixed;
+      top: 76px;
+      right: 20px;
+      z-index: 15;
+
+      width: 320px;
+      max-width: calc(100vw - 40px);
+
+      max-height: calc(100vh - 96px);
+      overflow-y: auto;
+
+      padding: 18px;
+
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+
+      background: var(--panel-bg);
+
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+
+      box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        0 0 30px rgba(0, 255, 65, 0.05),
+        inset 0 0 25px rgba(0, 255, 65, 0.025);
+
+      transform: translateY(-10px) scale(0.96);
+      opacity: 0;
+
+      pointer-events: none;
+
+      transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
+    }
+
+    .controls.open {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .controls::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .controls::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .controls::-webkit-scrollbar-thumb {
+      background: rgba(0, 255, 65, 0.2);
+      border-radius: 999px;
+    }
+
+    .controls h2 {
+      margin-bottom: 14px;
+
+      color: var(--accent);
+
+      font-size: 15px;
+      font-weight: 700;
+
+      letter-spacing: 1px;
+    }
+
+    .control-group {
+      margin-bottom: 14px;
+    }
+
+    .control-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      margin-bottom: 7px;
+
+      color: rgba(200, 225, 205, 0.85);
+
+      font-size: 12px;
+    }
+
+    .value {
+      min-width: 48px;
+
+      color: var(--accent);
+
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* =========================================
+       INPUTS
+       ========================================= */
+
+    input[type="range"] {
+      width: 100%;
+
+      accent-color: var(--accent);
+
+      cursor: pointer;
+    }
+
+    input[type="color"] {
+      width: 100%;
+      height: 36px;
+
+      padding: 2px;
+
+      border: 1px solid rgba(0, 255, 65, 0.2);
+      border-radius: 8px;
+
+      background: #050505;
+
+      cursor: pointer;
+    }
+
+    select {
+      width: 100%;
+
+      padding: 9px 10px;
+
+      border: 1px solid rgba(0, 255, 65, 0.2);
+      border-radius: 8px;
+
+      background: #030804;
+      color: #c9ffd6;
+
+      font-family: inherit;
+      font-size: 12px;
+
+      cursor: pointer;
+    }
+
+    select:hover {
+      border-color: rgba(0, 255, 65, 0.4);
+    }
+
+    /* =========================================
+       BUTTONS
+       ========================================= */
+
+    .buttons {
+      display: grid;
+
+      grid-template-columns: 1fr 1fr;
+
+      gap: 8px;
+
+      margin-top: 10px;
+    }
+
+    .button {
+      padding: 9px 10px;
+
+      border: 1px solid rgba(0, 255, 65, 0.2);
+      border-radius: 8px;
+
+      background: rgba(0, 255, 65, 0.045);
+
+      color: #caffd5;
+
+      font-family: inherit;
+      font-size: 11px;
+
+      cursor: pointer;
+
+      transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.2s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+
+      background: rgba(0, 255, 65, 0.11);
+
+      border-color: rgba(0, 255, 65, 0.5);
+    }
+
+    .button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+
+      color: #001b07;
+
+      font-weight: 700;
+    }
+
+    /* =========================================
+       FOOTER
+       ========================================= */
+
+    .footer {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      z-index: 10;
+
+      transform: translateX(-50%);
+
+      color: rgba(180, 255, 195, 0.42);
+
+      font-size: 10px;
+
+      letter-spacing: 1px;
+
+      white-space: nowrap;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    /* =========================================
+       MOBILE
+       ========================================= */
+
+    @media (max-width: 600px) {
+      .title {
+        top: 15px;
+        left: 15px;
+
+        transform: none;
+
+        max-width: calc(100vw - 80px);
+
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        font-size: 10px;
+        letter-spacing: 1.5px;
+      }
+
+      .control-toggle {
+        top: 15px;
+        right: 15px;
+      }
+
+      .controls {
+        top: 70px;
+        right: 10px;
+
+        width: calc(100vw - 20px);
+        max-width: none;
+      }
+
+      .footer {
+        bottom: 10px;
+
+        font-size: 8px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .atmosphere {
+        mix-blend-mode: normal;
+      }
+
+      .controls,
+      .control-toggle,
+      .button {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Main animation -->
+  <canvas id="matrix"></canvas>
+
+  <!-- Visual overlays -->
+  <div class="atmosphere"></div>
+  <div class="scanlines"></div>
+  <div class="vignette"></div>
+
+  <!-- Title -->
+  <div class="title">
+    MATRIX DIGITAL RAIN
+  </div>
+
+  <!-- Controls toggle -->
+  <button
+    class="control-toggle"
+    id="toggleControls"
+    title="Open controls"
+    aria-label="Open controls"
+    aria-expanded="false"
+  >
+    ⚙
+  </button>
+
+  <!-- Controls -->
+  <aside
+    class="controls"
+    id="controls"
+    aria-label="Matrix controls"
+  >
+
+    <h2>⚙ MATRIX CONTROLS</h2>
+
+    <!-- Color -->
+    <div class="control-group">
+      <div class="control-label">
+        <span>Rain Color</span>
+      </div>
+
+      <input
+        type="color"
+        id="color"
+        value="#00ff41"
+      >
+    </div>
+
+    <!-- Speed -->
+    <div class="control-group">
+      <div class="control-label">
+        <span>Speed</span>
+        <span
+          class="value"
+          id="speedValue"
+        >
+          1.0x
+        </span>
+      </div>
+
+      <input
+        type="range"
+        id="speed"
+        min="0.1"
+        max="4"
+        step="0.1"
+        value="1"
+      >
+    </div>
+
+    <!-- Density -->
+    <div class="control-group">
+      <div class="control-label">
+        <span>Density</span>
+        <span
+          class="value"
+          id="densityValue"
+        >
+          1.0x
+        </span>
+      </div>
+
+      <input
+        type="range"
+        id="density"
+        min="0.2"
+        max="2"
+        step="0.1"
+        value="1"
+      >
+    </div>
+
+    <!-- Font size -->
+    <div class="control-group">
+      <div class="control-label">
+        <span>Font Size</span>
+        <span
+          class="value"
+          id="fontValue"
+        >
+          16px
+        </span>
+      </div>
+
+      <input
+        type="range"
+        id="fontSize"
+        min="8"
+        max="30"
+        step="1"
+        value="16"
+      >
+    </div>
+
+    <!-- Trail -->
+    <div class="control-group">
+      <div class="control-label">
+        <span>Trail</span>
+        <span
+          class="value"
+          id="trailValue"
+        >
+          0.05
+        </span>
+      </div>
+
+      <input
+        type="range"
+        id="trail"
+        min="0.01"
+        max="0.25"
+        step="0.01"
+        value="0.05"
+      >
+    </div>
+
+    <!-- Glow -->
+    <div class="control-group">
+      <div class="control-label">
+        <span>Glow</span>
+        <span
+          class="value"
+          id="glowValue"
+        >
+          18px
+        </span>
+      </div>
+
+      <input
+        type="range"
+        id="glow"
+        min="0"
+        max="50"
+        step="1"
+        value="18"
+      >
+    </div>
+
+    <!-- Background -->
+    <div class="control-group">
+      <div class="control-label">
+        <span>Background</span>
+      </div>
+
+      <select id="background">
+        <option value="classic">Classic Black</option>
+        <option value="grid">Cyber Grid</option>
+        <option value="radial">Radial Glow</option>
+        <option value="space">Deep Space</option>
+        <option value="terminal">Terminal</option>
+      </select>
+    </div>
+
+    <!-- Characters -->
+    <div class="control-group">
+      <div class="control-label">
+        <span>Characters</span>
+      </div>
+
+      <select id="characters">
+        <option value="latin">Latin + Numbers</option>
+        <option value="katakana">Katakana + Latin</option>
+        <option value="binary">Binary</option>
+        <option value="symbols">Symbols</option>
+        <option value="everything">Everything</option>
+      </select>
+    </div>
+
+    <!-- Buttons -->
+    <div class="buttons">
+
+      <button
+        class="button primary"
+        id="pause"
+      >
+        ⏸ Pause
+      </button>
+
+      <button
+        class="button"
+        id="randomize"
+      >
+        🎲 Randomize
+      </button>
+
+      <button
+        class="button"
+        id="reset"
+      >
+        ↻ Reset
+      </button>
+
+      <button
+        class="button"
+        id="fullscreen"
+      >
+        ⛶ Fullscreen
+      </button>
+
+    </div>
+
+  </aside>
+
+  <!-- Footer -->
+  <div class="footer">
+    GITHUB PAGES // MATRIX // DIGITAL RAIN
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      /* =========================================
+         DOM REFERENCES
+         ========================================= */
+
+      const canvas =
+        document.getElementById("matrix");
+
+      const ctx =
+        canvas.getContext("2d");
+
+      const controls =
+        document.getElementById("controls");
+
+      const toggleControls =
+        document.getElementById("toggleControls");
+
+      const colorInput =
+        document.getElementById("color");
+
+      const speedInput =
+        document.getElementById("speed");
+
+      const densityInput =
+        document.getElementById("density");
+
+      const fontInput =
+        document.getElementById("fontSize");
+
+      const trailInput =
+        document.getElementById("trail");
+
+      const glowInput =
+        document.getElementById("glow");
+
+      const backgroundInput =
+        document.getElementById("background");
+
+      const charactersInput =
+        document.getElementById("characters");
+
+      const speedValue =
+        document.getElementById("speedValue");
+
+      const densityValue =
+        document.getElementById("densityValue");
+
+      const fontValue =
+        document.getElementById("fontValue");
+
+      const trailValue =
+        document.getElementById("trailValue");
+
+      const glowValue =
+        document.getElementById("glowValue");
+
+      const pauseButton =
+        document.getElementById("pause");
+
+      const randomizeButton =
+        document.getElementById("randomize");
+
+      const resetButton =
+        document.getElementById("reset");
+
+      const fullscreenButton =
+        document.getElementById("fullscreen");
+
+      /* =========================================
+         STATE
+         ========================================= */
+
+      const settings = {
+        color: "#00ff41",
+        speed: 1,
+        density: 1,
+        fontSize: 16,
+        trail: 0.05,
+        glow: 18,
+        background: "classic",
+        characters: "latin"
+      };
+
+      let width = 0;
+      let height = 0;
+
+      let columns = 0;
+      let drops = [];
+
+      let running = true;
+
+      let lastTime = 0;
+      let accumulator = 0;
+
+      let devicePixelRatio =
+        Math.max(
+          1,
+          Math.min(
+            window.devicePixelRatio || 1,
+            2
+          )
+        );
+
+      /* =========================================
+         CHARACTER SETS
+         ========================================= */
+
+      const characterSets = {
+        latin:
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+
+        katakana:
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" +
+          "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿ" +
+          "ﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉ" +
+          "ﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓ" +
+          "ﾔﾕﾖﾗﾘﾙﾚﾛﾜ",
+
+        binary:
+          "01",
+
+        symbols:
+          "!@#$%^&*()_+-=[]{}<>?/\\\\|~",
+
+        everything:
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" +
+          "abcdefghijklmnopqrstuvwxyz" +
+          "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿ" +
+          "ﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉ" +
+          "ﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓ" +
+          "ﾔﾕﾖﾗﾘﾙﾚﾛﾜ" +
+          "!@#$%^&*()_+-=[]{}<>?/\\\\|~"
+      };
+
+      function getCharacters() {
+        return (
+          characterSets[settings.characters] ||
+          characterSets.latin
+        );
+      }
+
+      function randomCharacter() {
+        const chars = getCharacters();
+
+        return chars[
+          Math.floor(
+            Math.random() * chars.length
+          )
+        ];
+      }
+
+      /* =========================================
+         COLOR HELPERS
+         ========================================= */
+
+      function hexToRgba(hex, alpha) {
+        const clean =
+          hex.replace("#", "");
+
+        const r =
+          parseInt(
+            clean.slice(0, 2),
+            16
+          );
+
+        const g =
+          parseInt(
+            clean.slice(2, 4),
+            16
+          );
+
+        const b =
+          parseInt(
+            clean.slice(4, 6),
+            16
+          );
+
+        return (
+          `rgba(${r}, ${g}, ${b}, ${alpha})`
+        );
+      }
+
+      function setCSSVariable(
+        name,
+        value
+      ) {
+        document.documentElement.style.setProperty(
+          name,
+          value
+        );
+      }
+
+      /* =========================================
+         CANVAS SETUP
+         ========================================= */
+
+      function resizeCanvas() {
+        devicePixelRatio =
+          Math.max(
+            1,
+            Math.min(
+              window.devicePixelRatio || 1,
+              2
+            )
+          );
+
+        width = window.innerWidth;
+        height = window.innerHeight;
+
+        canvas.width =
+          Math.floor(
+            width * devicePixelRatio
+          );
+
+        canvas.height =
+          Math.floor(
+            height * devicePixelRatio
+          );
+
+        canvas.style.width =
+          `${width}px`;
+
+        canvas.style.height =
+          `${height}px`;
+
+        ctx.setTransform(
+          devicePixelRatio,
+          0,
+          0,
+          devicePixelRatio,
+          0,
+          0
+        );
+
+        calculateColumns();
+      }
+
+      function calculateColumns() {
+        const fontSize =
+          settings.fontSize;
+
+        columns = Math.max(
+          1,
+          Math.ceil(
+            (width / fontSize) *
+            settings.density
+          )
+        );
+
+        drops = new Array(columns);
+
+        for (
+          let i = 0;
+          i < columns;
+          i++
+        ) {
+          drops[i] =
+            Math.floor(
+              Math.random() *
+              (-height / fontSize)
+            );
+        }
+      }
+
+      /* =========================================
+         BACKGROUND
+         ========================================= */
+
+      function updateBackground() {
+        const color =
+          settings.color;
+
+        if (
+          settings.background ===
+          "classic"
+        ) {
+          canvas.style.background =
+            "#000";
+        }
+
+        else if (
+          settings.background ===
+          "grid"
+        ) {
+          canvas.style.background = `
+            linear-gradient(
+              rgba(0, 255, 65, 0.025) 1px,
+              transparent 1px
+            ),
+            linear-gradient(
+              90deg,
+              rgba(0, 255, 65, 0.025) 1px,
+              transparent 1px
+            ),
+            radial-gradient(
+              circle at center,
+              ${hexToRgba(color, 0.08)},
+              #000 75%
+            )
+          `;
+
+          canvas.style.backgroundSize =
+            "50px 50px, 50px 50px, 100% 100%";
+        }
+
+        else if (
+          settings.background ===
+          "radial"
+        ) {
+          canvas.style.background = `
+            radial-gradient(
+              circle at 50% 40%,
+              ${hexToRgba(color, 0.12)},
+              #001000 35%,
+              #000 80%
+            )
+          `;
+        }
+
+        else if (
+          settings.background ===
+          "space"
+        ) {
+          canvas.style.background = `
+            radial-gradient(
+              circle at 20% 20%,
+              rgba(0, 120, 255, 0.08),
+              transparent 30%
+            ),
+            radial-gradient(
+              circle at 80% 80%,
+              rgba(150, 0, 255, 0.08),
+              transparent 30%
+            ),
+            radial-gradient(
+              circle at center,
+              ${hexToRgba(color, 0.06)},
+              #000 70%
+            )
+          `;
+        }
+
+        else if (
+          settings.background ===
+          "terminal"
+        ) {
+          canvas.style.background = `
+            linear-gradient(
+              rgba(0, 255, 65, 0.025),
+              rgba(0, 0, 0, 0.95)
+            ),
+            radial-gradient(
+              circle at center,
+              ${hexToRgba(color, 0.07)},
+              #000 75%
+            )
+          `;
+        }
+
+        setCSSVariable(
+          "--accent",
+          color
+        );
+
+        setCSSVariable(
+          "--panel-border",
+          hexToRgba(color, 0.25)
+        );
+
+        setCSSVariable(
+          "--text",
+          hexToRgba(color, 0.9)
+        );
+      }
+
+      /* =========================================
+         MATRIX DRAWING
+         ========================================= */
+
+      function drawGrid() {
+        if (
+          settings.background !==
+          "grid"
+        ) {
+          return;
+        }
+
+        const gridSize = 50;
+
+        ctx.save();
+
+        ctx.strokeStyle =
+          hexToRgba(
+            settings.color,
+            0.035
+          );
+
+        ctx.lineWidth = 1;
+
+        for (
+          let x = 0;
+          x < width;
+          x += gridSize
+        ) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
+        }
+
+        for (
+          let y = 0;
+          y < height;
+          y += gridSize
+        ) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      function draw(timestamp) {
+        if (!lastTime) {
+          lastTime = timestamp;
+        }
+
+        const delta =
+          Math.min(
+            timestamp - lastTime,
+            100
+          );
+
+        lastTime = timestamp;
+
+        if (!running) {
+          requestAnimationFrame(draw);
+          return;
+        }
+
+        accumulator += delta;
+
+        const interval =
+          Math.max(
+            8,
+            55 / settings.speed
+          );
+
+        if (
+          accumulator >= interval
+        ) {
+          accumulator = 0;
+
+          /* Fade the old frame */
+          ctx.fillStyle =
+            `rgba(0, 0, 0, ${settings.trail})`;
+
+          ctx.fillRect(
+            0,
+            0,
+            width,
+            height
+          );
+
+          drawGrid();
+
+          ctx.font =
+            `bold ${settings.fontSize}px monospace`;
+
+          for (
+            let i = 0;
+            i < drops.length;
+            i++
+          ) {
+            const x =
+              i * settings.fontSize;
+
+            const y =
+              drops[i] *
+              settings.fontSize;
+
+            const random =
+              Math.random();
+
+            /*
+             * Normal characters
+             */
+            ctx.fillStyle =
+              settings.color;
+
+            ctx.shadowColor =
+              settings.color;
+
+            ctx.shadowBlur =
+              settings.glow;
+
+            /*
+             * Occasional white flash
+             */
+            if (
+              random > 0.985
+            ) {
+              ctx.fillStyle =
+                "#ffffff";
+
+              ctx.shadowBlur =
+                settings.glow * 1.5;
+            }
+
+            ctx.fillText(
+              randomCharacter(),
+              x,
+              y
+            );
+
+            /*
+             * Extra bright head
+             */
+            if (
+              random > 0.965
+            ) {
+              ctx.fillStyle =
+                "#ffffff";
+
+              ctx.shadowBlur =
+                settings.glow * 2;
+
+              ctx.fillText(
+                randomCharacter(),
+                x,
+                y
+              );
+            }
+
+            ctx.shadowBlur = 0;
+
+            /*
+             * Move drop
+             */
+            drops[i] += 1;
+
+            /*
+             * Reset after leaving screen
+             */
+            if (
+              drops[i] *
+                settings.fontSize >
+                height &&
+              Math.random() >
+                0.975
+            ) {
+              drops[i] =
+                Math.floor(
+                  Math.random() * -40
+                );
+            }
+          }
+        }
+
+        requestAnimationFrame(draw);
+      }
+
+      /* =========================================
+         UI
+         ========================================= */
+
+      function updateValues() {
+        speedValue.textContent =
+          `${settings.speed.toFixed(1)}x`;
+
+        densityValue.textContent =
+          `${settings.density.toFixed(1)}x`;
+
+        fontValue.textContent =
+          `${settings.fontSize}px`;
+
+        trailValue.textContent =
+          settings.trail.toFixed(2);
+
+        glowValue.textContent =
+          `${settings.glow}px`;
+      }
+
+      function applySettings() {
+        updateValues();
+        updateBackground();
+        calculateColumns();
+      }
+
+      /* =========================================
+         CONTROLS TOGGLE
+         ========================================= */
+
+      toggleControls.addEventListener(
+        "click",
+        () => {
+          const isOpen =
+            controls.classList.toggle(
+              "open"
+            );
+
+          toggleControls.setAttribute(
+            "aria-expanded",
+            String(isOpen)
+          );
+
+          toggleControls.setAttribute(
+            "aria-label",
+            isOpen
+              ? "Close controls"
+              : "Open controls"
+          );
+        }
+      );
+
+      /* =========================================
+         INPUT HANDLERS
+         ========================================= */
+
+      colorInput.addEventListener(
+        "input",
+        () => {
+          settings.color =
+            colorInput.value;
+
+          updateBackground();
+        }
+      );
+
+      speedInput.addEventListener(
+        "input",
+        () => {
+          settings.speed =
+            Number(
+              speedInput.value
+            );
+
+          updateValues();
+        }
+      );
+
+      densityInput.addEventListener(
+        "input",
+        () => {
+          settings.density =
+            Number(
+              densityInput.value
+            );
+
+          calculateColumns();
+          updateValues();
+        }
+      );
+
+      fontInput.addEventListener(
+        "input",
+        () => {
+          settings.fontSize =
+            Number(
+              fontInput.value
+            );
+
+          calculateColumns();
+          updateValues();
+        }
+      );
+
+      trailInput.addEventListener(
+        "input",
+        () => {
+          settings.trail =
+            Number(
+              trailInput.value
+            );
+
+          updateValues();
+        }
+      );
+
+      glowInput.addEventListener(
+        "input",
+        () => {
+          settings.glow =
+            Number(
+              glowInput.value
+            );
+
+          updateValues();
+        }
+      );
+
+      backgroundInput.addEventListener(
+        "change",
+        () => {
+          settings.background =
+            backgroundInput.value;
+
+          updateBackground();
+        }
+      );
+
+      charactersInput.addEventListener(
+        "change",
+        () => {
+          settings.characters =
+            charactersInput.value;
+        }
+      );
+
+      /* =========================================
+         PAUSE / RESUME
+         ========================================= */
+
+      pauseButton.addEventListener(
+        "click",
+        () => {
+          running = !running;
+
+          pauseButton.textContent =
+            running
+              ? "⏸ Pause"
+              : "▶ Resume";
+        }
+      );
+
+      /* =========================================
+         RESET
+         ========================================= */
+
+      resetButton.addEventListener(
+        "click",
+        () => {
+          settings.color = "#00ff41";
+          settings.speed = 1;
+          settings.density = 1;
+          settings.fontSize = 16;
+          settings.trail = 0.05;
+          settings.glow = 18;
+          settings.background = "classic";
+          settings.characters = "latin";
+
+          colorInput.value =
+            settings.color;
+
+          speedInput.value =
+            settings.speed;
+
+          densityInput.value =
+            settings.density;
+
+          fontInput.value =
+            settings.fontSize;
+
+          trailInput.value =
+            settings.trail;
+
+          glowInput.value =
+            settings.glow;
+
+          backgroundInput.value =
+            settings.background;
+
+          charactersInput.value =
+            settings.characters;
+
+          running = true;
+
+          pauseButton.textContent =
+            "⏸ Pause";
+
+          ctx.clearRect(
+            0,
+            0,
+            width,
+            height
+          );
+
+          applySettings();
+        }
+      );
+
+      /* =========================================
+         RANDOMIZE
+         ========================================= */
+
+      randomizeButton.addEventListener(
+        "click",
+        () => {
+          const colors = [
+            "#00ff41",
+            "#00e5ff",
+            "#7cff00",
+            "#00ff9d",
+            "#39ff14",
+            "#b6ff00",
+            "#00ffa6",
+            "#66ffcc"
+          ];
+
+          const backgrounds = [
+            "classic",
+            "grid",
+            "radial",
+            "space",
+            "terminal"
+          ];
+
+          const characterModes = [
+            "latin",
+            "katakana",
+            "binary",
+            "symbols",
+            "everything"
+          ];
+
+          settings.color =
+            colors[
+              Math.floor(
+                Math.random() *
+                colors.length
+              )
+            ];
+
+          settings.speed =
+            Number(
+              (
+                0.4 +
+                Math.random() * 2.6
+              ).toFixed(1)
+            );
+
+          settings.density =
+            Number(
+              (
+                0.5 +
+                Math.random() * 1.3
+              ).toFixed(1)
+            );
+
+          settings.fontSize =
+            Math.floor(
+              11 +
+              Math.random() * 13
+            );
+
+          settings.trail =
+            Number(
+              (
+                0.02 +
+                Math.random() * 0.12
+              ).toFixed(2)
+            );
+
+          settings.glow =
+            Math.floor(
+              Math.random() * 35
+            );
+
+          settings.background =
+            backgrounds[
+              Math.floor(
+                Math.random() *
+                backgrounds.length
+              )
+            ];
+
+          settings.characters =
+            characterModes[
+              Math.floor(
+                Math.random() *
+                characterModes.length
+              )
+            ];
+
+          colorInput.value =
+            settings.color;
+
+          speedInput.value =
+            settings.speed;
+
+          densityInput.value =
+            settings.density;
+
+          fontInput.value =
+            settings.fontSize;
+
+          trailInput.value =
+            settings.trail;
+
+          glowInput.value =
+            settings.glow;
+
+          backgroundInput.value =
+            settings.background;
+
+          charactersInput.value =
+            settings.characters;
+
+          applySettings();
+        }
+      );
+
+      /* =========================================
+         FULLSCREEN
+         ========================================= */
+
+      fullscreenButton.addEventListener(
+        "click",
+        async () => {
+          try {
+            if (
+              !document.fullscreenElement
+            ) {
+              await document.documentElement.requestFullscreen();
+            } else {
+              await document.exitFullscreen();
+            }
+          } catch (error) {
+            console.error(
+              "Fullscreen error:",
+              error
+            );
+          }
+        }
+      );
+
+      /* =========================================
+         KEYBOARD SHORTCUTS
+         ========================================= */
+
+      document.addEventListener(
+        "keydown",
+        (event) => {
+          /*
+           * Space = pause
+           */
+          if (
+            event.code === "Space" &&
+            event.target.tagName !== "INPUT" &&
+            event.target.tagName !== "SELECT"
+          ) {
+            event.preventDefault();
+
+            pauseButton.click();
+          }
+
+          /*
+           * C = controls
+           */
+          if (
+            event.key.toLowerCase() === "c" &&
+            event.target.tagName !== "INPUT" &&
+            event.target.tagName !== "SELECT"
+          ) {
+            toggleControls.click();
+          }
+
+          /*
+           * R = randomize
+           */
+          if (
+            event.key.toLowerCase() === "r" &&
+            event.target.tagName !== "INPUT" &&
+            event.target.tagName !== "SELECT"
+          ) {
+            randomizeButton.click();
+          }
+
+          /*
+           * Escape = close controls
+           */
+          if (
+            event.key === "Escape" &&
+            controls.classList.contains("open")
+          ) {
+            toggleControls.click();
+          }
+        }
+      );
+
+      /* =========================================
+         RESIZE
+         ========================================= */
+
+      window.addEventListener(
+        "resize",
+        resizeCanvas
+      );
+
+      /* =========================================
+         INITIALIZATION
+         ========================================= */
+
+      resizeCanvas();
+      updateBackground();
+      updateValues();
+
+      requestAnimationFrame(draw);
+    })();
+  </script>
+
+</body>
+</html>
